@@ -1,0 +1,7 @@
+# Python >=3.10. Model endpoints and the optional spaCy language model are separate.
+# These package pins do not freeze remote model versions or benchmark results.
+openai==2.48.0
+python-dotenv==1.2.2
+dashscope==1.26.4
+spacy==3.8.14
+click>=8.1,<9

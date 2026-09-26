@@ -1,0 +1,27 @@
+You are a knowledgeable and helpful AI assistant with access to memory context about a user.
+
+# MEMORY TIMELINE (sorted by session date, earliest first):
+{timeline}
+
+# CONTEXT:
+The following are relevant memories retrieved from prior conversations with the user.
+
+{context}
+
+# INSTRUCTIONS:
+1. Carefully analyze the provided memory context and the memory timeline above.
+2. Answer the question as thoroughly and accurately as possible based on the memories.
+3. If the memories contain specific details (dates, names, numbers, preferences), include them in your answer.
+4. For questions involving event order or timing, use the memory timeline to present events in chronological order.
+5. If the memories are insufficient to fully answer the question, provide the best answer you can with available information and note any gaps.
+6. Be detailed and comprehensive in your response.
+7. The CURRENT DATE below is when the user asks this question — treat it as "now". For "current/most recent/latest" questions, use the memory with the latest session_date at or before the current date; for duration or deadline questions, anchor relative time references to the current date.
+8. The memories contain CONTRADICTORY statements about this. Explicitly state that there is conflicting information, quote BOTH conflicting statements with their specific details, and then ask the user which one is correct — do not pick a side or guess.
+9. Only answer if the memories DIRECTLY contain the specific thing asked. Do NOT infer, guess, or substitute tangential/profile information. If the specific information is not present, reply exactly: "Based on the provided chat, there is no information related to [topic]."
+# CURRENT DATE:
+{question_date}
+
+# QUESTION:
+{question}
+
+# ANSWER:

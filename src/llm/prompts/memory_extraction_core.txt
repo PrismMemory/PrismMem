@@ -1,0 +1,546 @@
+
+# Input Parameters
+- Participants: `{{PARTICIPANTS}}` — the speakers in this dialogue. A durable-state facet is usually *about* one of them; attribute it with `user_id`.
+- Dialogue content: `{{USER_INPUT}}`. Each line is one turn in the form `TIMESTAMP [chat_id] speaker: text`, ordered oldest to newest. The bracketed token is that turn's `chat_id`.
+- Existing topic / subtopic list: `{{CORE_EXISTING_TOPICS_AND_SUBTOPICS}}`.
+ 
+### Output Format
+ 
+Your entire answer **MUST** be a single JSON object containing a `CORE_MEMORY` array. If there is no valid extractable memory, output `{"CORE_MEMORY": []}`.
+ 
+```json
+{
+  "CORE_MEMORY": [
+    {
+      "sourceEvidence": [
+        {
+          "chatId": "source chat_id or null",
+          "quote": "verbatim supporting text copied from the original utterance"
+        }
+      ],
+      "topic": "string",
+      "subTopic": "string",
+      "content": "string",
+      "roleSpec": "string",
+      "entityType": "string",
+      "entityName": "string",
+      "tags": ["key entity or concrete retrieval keyword"],
+      "user_id": "string"
+    }
+  ]
+}
+```
+ 
+# Durable-State Facet Rules & Processing Logic
+ 
+You must strictly follow the five processing rules below.
+ 
+## Rule 0: Mandatory Evidence-First Processing Order
+ 
+For every candidate memory, perform the following steps in this exact order before emitting JSON:
+ 
+1. **Locate original evidence first**: identify the exact source utterance(s) that support the
+   candidate fact. Treat those original utterances — not any summary you are about to write — as
+   the sole evidence.
+2. **Decide eligibility from the evidence**: decide whether the original evidence describes a
+   stable, long-term durable-state fact. Do not make this decision from a generated `content` sentence.
+3. **Choose `topic` and `subTopic` from the original evidence only**: while classifying, ignore
+   any generated `content`, `tags`, or conversational task label. The taxonomy must still be
+   justified if all generated fields are hidden.
+4. **Write `content` as source-preserving compression**: grammatical third-person rewriting and
+   merging compatible source statements are allowed, but semantic generalization is forbidden.
+5. **Generate `tags` last**, after the evidence, eligibility, taxonomy, and content are fixed.
+ 
+**Source-preserving content contract**:
+ 
+* Preserve every answer-bearing proper name, relationship, product/model, number, currency,
+  quantity, unit, duration, frequency, time, location, negation, uncertainty marker, condition,
+  and name-to-attribute association stated in the evidence.
+* Never replace a specific source detail with a broader category or generic paraphrase. A broader
+  category may be added only when useful and only in addition to — not instead of — the original
+  detail. For example, `Vehicle Model A` must not become only `an EV`, and `around 250k` must not become
+  only `a moderate budget`.
+* Do not classify the surrounding request instead of the retained fact. For example, in a gift
+  discussion, `the speaker's mother likes gardening` is evidence about the mother's preference; it
+  must not be relabeled merely as `Gift-giving` or `Shopping` because those words describe the
+  current task.
+* Before returning, compare every `content` with its original supporting utterance(s). If a
+  concrete detail was removed, generalized, strengthened, weakened, or reassigned to another
+  entity, repair the record before output.
+ 
+**Mandatory `sourceEvidence` output contract**:
+ 
+* Every durable-state facet object must contain a non-empty `sourceEvidence` array.
+* Each evidence item contains `chatId` and `quote`. Copy `chatId` exactly as it appears in the
+  bracketed token of the source line (e.g. `D1:2`); use `null` only when the line carries no
+  bracketed id. Never invent an id.
+* `quote` must be a verbatim, contiguous span copied from the original utterance. Do not translate,
+  paraphrase, summarize, correct, normalize, or add words inside the quote. Quote the utterance
+  text only — never the `TIMESTAMP [chat_id] speaker:` prefix.
+* Use the smallest sufficient quote that still proves the extracted fact. When one memory
+  aggregates facts from multiple utterances, include every supporting quote as a separate item.
+* Every claim in `content`, and the selected `topic` / `subTopic`, must be supported by at least
+  one listed quote. If no exact supporting quote exists, do not output the memory.
+ 
+## Rule 1: The Supreme Principle of Memory Extraction
+ 
+This is the top-level filter that decides **what information may be extracted**.
+ 
+* **A. Core idea: facts first, no deep inference**
+    * **IV. Explicitly excluded non-long-term info**: same-day/short-term behavior ("today", "yesterday"); one-off events ("bought X"); temporary states ("not feeling well right now"); incidental interest ("suddenly want to eat X"); one-off task instructions ("write me an email", "translate this"). Note: a speaker's persistent preference about interaction style ("reply in Chinese", "no emoji", "act as my technical advisor") is NOT a one-off task instruction and should be extracted per II.
+    * **V. Negation statements**: negating a stable preference is usually also long-term and should be extracted ("I don't like sweets").
+    * **VI. [High priority] Exception clause**: life-event exemption. The only exception for "one-off events" is those that constitute a "major life event". Criterion: if an event clearly maps to any subTopic under the `Major Life Events` topic in `<DEFAULT_TOPIC_SYSTEM>` (marriage, relocation, retirement, childbirth, major purchase, major health event, milestone anniversary), it must be extracted even if one-off. Extract: "I'm moving to City A next month" (relocation), "we're getting married next year" (marriage), "I just bought a house last month" (major purchase). Do not extract: "I just bought a new shirt" (not a major life event).
+    * **VII. [High priority] Identity-name and observed-address exception**:
+        * Canonical names, explicitly stated aliases or nicknames, and unambiguous **name-like**
+          forms of direct address are stable identity facts. You **must extract them even when they
+          appear only once**; this rule overrides the one-off/transient exclusion above.
+        * An observed address is extractable without a self-declaration such as "call me ..." only
+          when the mapping is explicit and unambiguous from the same local dialogue. A merely
+          observed form requires local corroboration: repeated use, a response from the clearly
+          identified addressee, or nearby use of that addressee's canonical name by the same speaker.
+        * Preserve directionality in `content`: write who uses which form for whom, for example
+          `Participant A uses "Alias B" as a nickname or form of address for Participant B`. Keep the target's
+          canonical name in `entityName`; never replace it with the alias.
+        * Classify an observed or explicitly stated alias under `Basic Info` / `Alias or Nickname`.
+          Reserve `Preferred Name` for a person's self-declared preference. An observed address used
+          by one speaker does not establish a globally preferred name.
+        * Include the canonical name, alias, and the person who uses it in `tags` when they are
+          explicit. Do not infer an alias from name similarity alone, and do not treat generic
+          endearments, kinship terms, titles, honorifics, roles, greetings, insults, wordplay,
+          pronouns, typographical errors, or ambiguous abbreviations as aliases unless the dialogue
+          explicitly establishes that mapping.
+    * **VIII. Mandatory**: if you cannot determine whether information is long-term, **do not extract by default**, except where one of the explicit high-priority exceptions above applies.
+ 
+* **C. Special-context filter: isolate real from unreal**
+    * **I. Strictly forbidden**: extracting content from dream details, translation requests, fictional stories, and ordinary one-off non-roleplay hypotheticals (e.g. "suppose I win the lottery tomorrow", "I like autumn, translate this for me", "write for me: I am a doctor").
+    * `group`: an organizational entity ("our family", "our company").
+    * `role:xxx`: a roleplay identity (e.g. `role:doctor`).
+    * `unknown`: no explicit subject and none inferable from context.
+    **Note**: a line's `speaker` tells you who is talking, not automatically whom the sentence is *about*. When the subject cannot be determined from the utterance and its adjacent context, set `entityType` to `unknown`.
+* **C. Subject name (`entityName`)**:
+    * The speaker's own name when `entityType` is `self`.
+    * "<speaker>'s mother" / "<speaker>'s friend" for "my mother" / "my friend".
+Decides **how to format each field**.
+ 
+* **A. Content aggregation (`content`)**: for the same `subTopic` (or semantically similar subTopics) touched **within this dialogue**, fuse all related information into one `content` string.
+    * Aggregation may combine only facts directly supported by compatible original utterances. It must preserve all distinct concrete details and must not replace them with a common higher-level summary.
+* **B. Precise time handling (`content`)**:
+    * **Mention time**: extract the date from the `TIMESTAMP` and append it to the end of `content` as `[mentioned on YYYY-MM-DD]`.
+    * **Event time**: if there is a relative time ("year before last"), compute the absolute date from the timestamp and present it in `content` as "occurred <original expression> (computed absolute date)", e.g. `[occurred year before last (2022), mentioned on 2024-05-22]`.
+* **C. Memory space (`roleSpec`)**:
+    * `real`: reflects the speaker's real-world behavior, preferences, facts. This is the default.
+    * `role`: for a fictional identity or roleplay scenario the speaker explicitly establishes ("if I were Hero A...", "I'm playing a doctor..."), extract it and mark `roleSpec` as `role`. This is fundamentally different from the ordinary hypotheticals discarded in Rule 1.C.
+* **D. Retrieval tags (`tags`)**:
+    * Every durable-state facet object must contain a `tags` array.
+    * Extract 1-5 concise, concrete retrieval keys grounded in this memory: named people,
+      organizations, places, projects, products, technical terms, qualifications, media titles,
+      foods, sports, or other specific entities central to the fact.
+    * When `entityName` is a specific person or relationship rather than a speaker's own name or
+      `unknown`, include that normalized subject in `tags` when useful for retrieval.
+    * Do not copy abstract taxonomy labels such as `Lifestyle`, `Preference`, `Goal`, or the
+      `topic` / `subTopic` merely to fill the list. Do not invent aliases or entities absent from
+      the dialogue.
+    * Remove duplicates. Use `[]` only when the memory contains no meaningful concrete retrieval key.
+ 
+## Rule 4: Topic & SubTopic Classification
+Decides **how to tag a memory**.
+ 
+`topic` and `subTopic` must be selected by rereading the original supporting utterance(s). It is
+strictly forbidden to derive taxonomy from the already generated `content`, `tags`, or the broad
+task being discussed.
+ 
+* **Step 1 — mandatory reuse**: if the existing topic/subtopic list in `[INPUT DATA]` is non-empty, first check whether the extracted concept matches an entry. If so, reuse its name **verbatim**.
+* **Step 2 — reference the default system**: if no match, use `<DEFAULT_TOPIC_SYSTEM>` below to pick the most suitable `topic` and `subTopic`.
+* **Step 3 — create cautiously**: only when a concept is entirely new and absent from the system may you create a new, concise, meaningful `topic` and `subTopic`.
+### <DEFAULT_TOPIC_SYSTEM>
+**Note: text in parentheses `()` explains a topic for your judgment only — it must never appear in the output `topic`/`subTopic` fields.**
+ 
+* **Basic Info**: `Name`, `Preferred Name` (what the speaker wants to be called, e.g. "call me Alias A"), `Alias or Nickname` (an explicitly stated alias, or an unambiguous name-like form of address observed in dialogue; preserve who uses it for whom), `Age`, `Gender`, `Date of Birth`, `Nationality`, `Ethnicity`, `Language` (natural languages such as Chinese/English/Cantonese, not programming languages or OS names), `Dreams & Ideals` (a concrete ultimate vision, e.g. "become an astronaut", "travel the world", not an attitude toward dreams), `Personality Tendency` (traits such as optimistic/cautious/socially anxious that shape interaction style), `Industry` (the speaker's industry, e.g. finance/education/internet), `Family Role` (main role label in the family, e.g. "parent of a 2nd-grader", "new dad", "only child")
+* **Contact Info**: `Email`, `Phone`, `Home City` (long-term city of residence), `Planned Destination` (an area the speaker has a definite plan to visit)
+* **Education**: `School`, `Degree`, `Highest Education`, `Major`, `Graduation Year`, `Enrollment Status` (currently a student or not), `Grade Level` (e.g. junior year, 10th grade), `Learning Content` (specific course/subject currently being studied — the "what", e.g. "learning Japanese"; exam/cert goals go to Goals & Plans.Learning Goal)
+* **Demographics**: `Marital Status`, `Number of Children`, `Children's Gender`, `Children's Age`, `Children's Type` (biological, step, adopted), `Family Members` (family other than children, e.g. "has a younger sister"), `Pets`, `Household Income`, `Living Situation` (renting, owns home, living with family), `Vehicle` (whether owning cars etc. and how many)
+* **AI Assistant Setup**: `Role Expectation` (role the speaker wants the AI to play, e.g. "be my technical advisor"), `Style Requirement` (tone, persona, attitude of AI replies, e.g. "be professional", "chat like a friend" — the AI's "personality"; info organization goes to Interaction Preference.Communication Preference), `Capability Boundary` (limits/authorizations on AI behavior, e.g. "don't ask me to confirm every time", "don't recommend proactively", "you may operate directly for me")
+ 
+### Examples
+The following show how to apply the rules above.
+ 
+**Example 1: Aggregation & timestamp**
+* Input:
+    ```
+    2025-01-02 10:15:00 [D1:1] Participant A: My favorite movies are Movie A and Movie B.
+    2025-01-02 10:17:00 [D1:3] Participant A: Oh right, Movie C is amazing too!
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [{
+        "sourceEvidence": [
+          {"chatId": "D1:1", "quote": "My favorite movies are Movie A and Movie B."},
+          {"chatId": "D1:3", "quote": "Oh right, Movie C is amazing too!"}
+        ],
+        "topic": "Interests",
+        "subTopic": "Movies",
+        "content": "Favorite movies are Movie A, Movie B, and Movie C [mentioned on 2025-01-02]",
+        "roleSpec": "real",
+        "entityType": "self",
+        "entityName": "Participant A",
+        "tags": ["Movie A", "Movie B", "Movie C"],
+        "user_id": "Participant A"
+      }]
+    }
+    ```
+ 
+**Example 2: Multi-subject extraction**
+* Input:
+    ```
+    2025-03-15 11:00:10 [D4:2] Participant B: I go to the gym at least three times a week.
+    2025-03-15 11:00:55 [D4:4] Participant B: My husband doesn't like exercise though; he loves dramas from Region A.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D4:2", "quote": "I go to the gym at least three times a week."}
+          ],
+          "topic": "Lifestyle",
+          "subTopic": "Exercise Preference & Habit",
+          "content": "Goes to the gym at least three times a week [mentioned on 2025-03-15]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant B",
+          "tags": ["gym"],
+          "user_id": "Participant B"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D4:4", "quote": "My husband doesn't like exercise though; he loves dramas from Region A."}
+          ],
+          "topic": "Lifestyle",
+          "subTopic": "Exercise Preference & Habit",
+          "content": "Does not like exercise [mentioned on 2025-03-15]",
+          "roleSpec": "real",
+          "entityType": "family",
+          "entityName": "Participant B's husband",
+          "tags": ["Participant B's husband", "exercise"],
+          "user_id": "Participant B"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D4:4", "quote": "My husband doesn't like exercise though; he loves dramas from Region A."}
+          ],
+          "topic": "Interests",
+          "subTopic": "TV Series",
+          "content": "Loves dramas from Region A [mentioned on 2025-03-15]",
+          "roleSpec": "real",
+          "entityType": "family",
+          "entityName": "Participant B's husband",
+          "tags": ["Participant B's husband", "dramas from Region A"],
+          "user_id": "Participant B"
+        }
+      ]
+    }
+    ```
+ 
+**Example 3: Memory space (`roleSpec`)**
+* Input:
+    ```
+    2024-05-22 09:30:00 [D2:1] Participant A: My dream is to be an astronaut.
+    2024-05-22 09:31:00 [D2:2] Participant A: If I were Hero A, I'd fly into space.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D2:1", "quote": "My dream is to be an astronaut."}
+          ],
+          "topic": "Basic Info",
+          "subTopic": "Dreams & Ideals",
+          "content": "Dream is to be an astronaut [mentioned on 2024-05-22]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["astronaut"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D2:2", "quote": "If I were Hero A, I'd fly into space."}
+          ],
+          "topic": "Basic Info",
+          "subTopic": "Dreams & Ideals",
+          "content": "If he were Hero A, he'd fly into space [mentioned on 2024-05-22]",
+          "roleSpec": "role",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["Hero A", "space"],
+          "user_id": "Participant A"
+        }
+      ]
+    }
+    ```
+ 
+**Example 4: Time handling & correction**
+* Input:
+    ```
+    2024-05-22 09:30:00 [D2:1] Participant A: I graduated from University A last year.
+    2024-05-22 09:31:00 [D2:2] Participant A: Ah, misspoke — it was the year before last.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D2:1", "quote": "I graduated from University A last year."},
+            {"chatId": "D2:2", "quote": "Ah, misspoke — it was the year before last."}
+          ],
+          "topic": "Education",
+          "subTopic": "School",
+          "content": "Graduated from University A [occurred year before last (2022), mentioned on 2024-05-22]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["University A"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D2:1", "quote": "I graduated from University A last year."},
+            {"chatId": "D2:2", "quote": "Ah, misspoke — it was the year before last."}
+          ],
+          "topic": "Education",
+          "subTopic": "Graduation Year",
+          "content": "Graduated the year before last (2022) [occurred year before last (2022), mentioned on 2024-05-22]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["2022", "University A"],
+          "user_id": "Participant A"
+        }
+      ]
+    }
+    ```
+
+**Example 5: No explicit subject (`unknown`)**
+* Input:
+    ```
+    2024-05-22 09:30:00 [D7:5] unknown speaker: Likes eating apples.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [{
+        "sourceEvidence": [
+          {"chatId": "D7:5", "quote": "Likes eating apples."}
+        ],
+        "topic": "Lifestyle",
+        "subTopic": "Dietary Preference",
+        "content": "Likes eating apples [mentioned on 2024-05-22]",
+        "roleSpec": "real",
+        "entityType": "unknown",
+        "entityName": "unknown",
+        "tags": ["apples"],
+        "user_id": null
+      }]
+    }
+    ```
+ 
+**Example 6: Third-person resolution (success vs failure)**
+* Input (success):
+    ```
+    2024-05-22 09:30:00 [D3:1] Participant A: My friend is named Person C.
+    2024-05-22 09:31:00 [D3:2] Participant A: He probably wouldn't like bitter melon.
+    ```
+* Output (success):
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D3:1", "quote": "My friend is named Person C."}
+          ],
+          "topic": "Basic Info",
+          "subTopic": "Name",
+          "content": "Friend is named Person C [mentioned on 2024-05-22]",
+          "roleSpec": "real",
+          "entityType": "friend",
+          "entityName": "Person C",
+          "tags": ["Person C"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D3:1", "quote": "My friend is named Person C."},
+            {"chatId": "D3:2", "quote": "He probably wouldn't like bitter melon."}
+          ],
+          "topic": "Lifestyle",
+          "subTopic": "Dietary Preference",
+          "content": "Probably wouldn't like bitter melon [mentioned on 2024-05-22]",
+          "roleSpec": "real",
+          "entityType": "friend",
+          "entityName": "Person C",
+          "tags": ["Person C", "bitter melon"],
+          "user_id": "Participant A"
+        }
+      ]
+    }
+    ```
+* Input (failure): a lone "He probably wouldn't like bitter melon." with no prior referent -> Output: `{"CORE_MEMORY": []}`.
+ 
+**Example 7: Daily-habit extraction (with boundary distinctions)**
+* Input:
+    ```
+    2025-06-10 08:20:00 [D5:1] Participant A: I usually watch the news at 8, then get to the company for the standup at 9.
+    2025-06-10 08:21:00 [D5:2] Participant A: Every Friday afternoon our group has a retrospective meeting.
+    2025-06-10 08:22:00 [D5:3] Participant A: I take the subway to work, about 40 minutes.
+    2025-06-10 08:23:00 [D5:4] Participant A: On weekends I usually go running.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D5:1", "quote": "I usually watch the news at 8, then get to the company for the standup at 9."}
+          ],
+          "topic": "Daily Habits",
+          "subTopic": "Daily Fixed Behavior",
+          "content": "Usually watches the news at 8 [mentioned on 2025-06-10]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["news"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D5:1", "quote": "I usually watch the news at 8, then get to the company for the standup at 9."},
+            {"chatId": "D5:2", "quote": "Every Friday afternoon our group has a retrospective meeting."}
+          ],
+          "topic": "Work Environment",
+          "subTopic": "Recurring Events",
+          "content": "Standup at 9; group retrospective meeting every Friday afternoon [mentioned on 2025-06-10]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["standup", "retrospective meeting"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D5:3", "quote": "I take the subway to work, about 40 minutes."}
+          ],
+          "topic": "Lifestyle",
+          "subTopic": "Travel Preference",
+          "content": "Takes the subway to work, about 40 minutes [mentioned on 2025-06-10]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["subway"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D5:4", "quote": "On weekends I usually go running."}
+          ],
+          "topic": "Daily Habits",
+          "subTopic": "Weekly Regular Behavior",
+          "content": "Usually goes running on weekends [mentioned on 2025-06-10]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["running"],
+          "user_id": "Participant A"
+        }
+      ]
+    }
+    ```
+    *Note the boundary distinctions: work-related recurring behavior (standup, retrospective) goes to Work Environment.Recurring Events with content aggregation; commuting goes to Lifestyle.Travel Preference; personal-life weekly routine (weekend running) goes to Daily Habits.Weekly Regular Behavior.*
+ 
+**Example 8: Goal extraction (with exclusion contrast)**
+* Input:
+    ```
+    2025-04-01 20:00:00 [D6:1] Participant A: I'm losing weight, aiming to drop 5 kg.
+    2025-04-01 20:01:00 [D6:2] Participant A: Also, I'm preparing to take the Certification A next year.
+    2025-04-01 20:02:00 [D6:3] Participant A: I want hotpot today.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [
+        {
+          "sourceEvidence": [
+            {"chatId": "D6:1", "quote": "I'm losing weight, aiming to drop 5 kg."}
+          ],
+          "topic": "Goals & Plans",
+          "subTopic": "Health Goal",
+          "content": "Losing weight, aiming to drop 5 kg [mentioned on 2025-04-01]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["weight loss", "5 kg"],
+          "user_id": "Participant A"
+        },
+        {
+          "sourceEvidence": [
+            {"chatId": "D6:2", "quote": "Also, I'm preparing to take the Certification A next year."}
+          ],
+          "topic": "Goals & Plans",
+          "subTopic": "Learning Goal",
+          "content": "Preparing to take the Certification A next year [mentioned on 2025-04-01]",
+          "roleSpec": "real",
+          "entityType": "self",
+          "entityName": "Participant A",
+          "tags": ["Certification A"],
+          "user_id": "Participant A"
+        }
+      ]
+    }
+    ```
+    *Note: "I want hotpot today" is an immediate desire, excluded per Rule 1.B.IV.*
+ 
+**Example 9: Directional nickname from an observed form of address**
+* Input:
+    ```
+    2025-02-03 10:00:00 [D1:1] Participant A: Hey Alias B, are you bringing dessert to Mom's birthday?
+    2025-02-03 10:01:00 [D1:2] Participant B: Yes, Participant A. I'll bring it, little brother.
+    2025-02-03 10:02:00 [D1:3] Participant A: Thanks, Participant B.
+    ```
+* Output:
+    ```json
+    {
+      "CORE_MEMORY": [{
+        "sourceEvidence": [
+          {"chatId": "D1:1", "quote": "Hey Alias B, are you bringing dessert to Mom's birthday?"},
+          {"chatId": "D1:2", "quote": "Yes, Participant A. I'll bring it, little brother."},
+          {"chatId": "D1:3", "quote": "Thanks, Participant B."}
+        ],
+        "topic": "Basic Info",
+        "subTopic": "Alias or Nickname",
+        "content": "Participant A uses \"Alias B\" as a nickname or form of address for Participant B [mentioned on 2025-02-03]",
+        "roleSpec": "real",
+        "entityType": "family",
+        "entityName": "Participant B",
+        "tags": ["Participant B", "Alias B", "Participant A"],
+        "user_id": "Participant A"
+      }]
+    }
+    ```
+    *Note: this records a speaker-specific observed address. It does not claim that Participant B globally prefers everyone to call her "Alias B".*
+ 
+---
+ 
+# [INPUT DATA]
+ 
+Participants: {{PARTICIPANTS}}
+ 
+Dialogue content: {{USER_INPUT}}
+ 
+Existing topic / subtopic list: {{CORE_EXISTING_TOPICS_AND_SUBTOPICS}}
+ 
+# [YOUR TASK]
+Process the `[INPUT DATA]` above under all the rules, references, and examples, and produce your single, final JSON output.

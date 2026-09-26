@@ -1,0 +1,362 @@
+# Input Parameters
+- Participants: `{{PARTICIPANTS}}` — the speakers in this dialogue. Each event facet usually belongs to the speaker who experienced or narrated the event; attribute it with `user_id`.
+- Dialogue content: `{{USER_INPUT}}`. Each line is one turn in the form `TIMESTAMP [chat_id] speaker: text`, ordered oldest to newest. The bracketed token is that turn's `chat_id`; use its TIMESTAMP as the `mentionTime` for content drawn from it.
+ 
+<MemoryTaxonomy>
+Three facet types, contrasted.
+</MemoryTaxonomy>
+ 
+<ExtractionRules>
+**Mandatory evidence-first processing order**
+ 
+For every candidate event, follow this order before emitting JSON:
+ 
+1. Identify the exact original utterance(s) that state the event and its concrete details.
+2. Decide whether the event is eligible for an event facet from those utterances alone.
+3. Choose `eventTypeL1` and `eventTypeL2` from the original utterance evidence only. While
+   classifying, ignore any generated `content`, `context`, `tags`, or broad conversation/task label.
+4. Write `content` as a source-preserving third-person rendering of the evidence.
+5. Generate `context` and `tags` only after the evidence, taxonomy, and content are fixed.
+ 
+**Mandatory source evidence**
+ 
+- Every emitted event-facet record must contain a non-empty `sourceEvidence` list.
+- Each item must be `{"chatId": <exact source chat_id or null>, "quote": <exact quote>}`. Copy the
+  chat_id exactly as it appears in the bracketed token of the source line (e.g. `D1:2`); use `null`
+  only when the line carries no bracketed id — never invent an id.
+- `quote` must be a verbatim, contiguous span copied from the original utterance. Do not translate,
+  paraphrase, summarize, correct, normalize, or add text inside a quote. Quote the utterance text
+  only — never the `TIMESTAMP [chat_id] speaker:` prefix.
+- Use the smallest sufficient quote that preserves the answer-bearing detail. For a record that
+  aggregates multiple utterances, include every supporting quote as a separate item.
+- Every factual detail in `content` and every taxonomy decision must be supported by
+  `sourceEvidence`. If no exact supporting quote exists, do not emit the memory.
+ 
+**Source-preserving content contract**
+ 
+- Preserve every answer-bearing proper name, relationship, product/model, number, currency,
+  quantity, unit, duration, frequency, time expression, location, participant, negation,
+  uncertainty marker, condition, and name-to-attribute association in the original evidence.
+- Grammatical third-person rewriting and merging compatible source statements are allowed;
+  semantic generalization is forbidden. Never replace a specific detail with only a parent category
+  or generic paraphrase. For example, `Vehicle Model A` must not become only `an EV`, and `around 250k`
+  must not become only `a moderate budget`.
+- The event taxonomy must remain fully justified when `content`, `context`, and `tags` are hidden.
+- Before returning, compare each record with its supporting utterance(s). Repair any concrete
+  detail that was removed, generalized, strengthened, weakened, or assigned to the wrong entity.
+ 
+Extraction principles
+1. **11-subtype priority**: extract as long as the described content **essentially** belongs to one of the 11 subtypes — whether one or several.
+2. **Recall-value orientation**: the extracted memory should potentially help future understanding of a speaker's background, emotion, or needs.
+5. **Format compliance**: output strictly per the JSON schema.
+ 
+Field notes
+ 
+1. content (third-person narrative)
+- Include: event core, time (if any), place (if any), participants, key details.
+- Preserve the original time expression in the narrative. When `eventTime` is uniquely resolved,
+  it may follow in parentheses, e.g. "yesterday (2025-04-04)".
+- Do not replace an unresolved or fuzzy original expression with a guessed date.
+ 
+2. Time fields
+Extract exactly these four temporal fields:
+ 
+- `originalTimeExpression`: the event-time wording copied verbatim from the source, or `null` when
+  the event has no explicit time expression.
+- `mentionTime`: the exact timestamp of the source message that states the event. This is the
+  dialogue time, not automatically the event time.
+- `eventTime`: the normalized event time at the highest precision explicitly stated or uniquely
+  resolvable from `mentionTime`. Use `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, or `YYYY-MM-DD HH:mm:ss`
+  according to the supported precision. Otherwise use `null`.
+- `timePrecision`: `"year"`, `"month"`, `"day"`, or `"time"` to match `eventTime`; use `null` when
+  `eventTime` is `null`.
+ 
+Resolve a relative expression ("yesterday", "last Wednesday") only when it maps to one unique event
+time at the claimed precision from `mentionTime`. A range or fuzzy expression such as "last week",
+"as a child", or "once" is not one unique date: preserve it in `originalTimeExpression`, but set
+`eventTime` and `timePrecision` to `null`.
+ 
+Never zero-fill or guess an unstated year, month, day, or clock time. In particular, do not turn a
+day-precision date into midnight and do not invent a weekday inside a week.
+ 
+3. location
+Explicit locations must be extracted, largest-to-smallest (e.g. "District A, City A, Region A — Science Park A"). Fuzzy locations may keep the original word; no location -> `null`.
+ 
+4. participants
+```json
+[
+  {
+    "roleInEvent": "subject or involved",
+    "entity": {
+      "name": "entity name",
+      "type": "entity type",
+      "confidence": 1.0
+    }
+  }
+]
+```
+ 
+5. Event classification (eventTypeL1 / L2)
+Must strictly pick a level-1 and level-2 tag from the presets below. Make this choice by rereading
+the original supporting utterance(s), never by classifying the generated `content`, `context`, or
+`tags`:
+- **Core Life Event** (`eventTypeL1: "Core Life Event"`): `eventTypeL2` in "Education & Growth" | "Skill Acquisition" | "Career" | "Family & Relationships" | "Life Transition".
+- **Personal Experience** (`eventTypeL1: "Personal Experience"`): `eventTypeL2` in "Health & Medical" | "Consumption & Finance" | "Travel & Commute" | "Social & Entertainment" | "Emotion & Psychology".
+- **Goals & Planning** (`eventTypeL1: "Goals & Planning"`): `eventTypeL2` in "Goal Setting" | "Plan Making" | "Intention Expression".
+</ExtractionRules>
+
+<OutputFormat>
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {
+          "chatId": "source chat_id or null",
+          "quote": "verbatim supporting text copied from the original utterance"
+        }
+      ],
+      "content": "third-person narrative description",
+      "tags": ["keyword1", "keyword2"],
+      "context": "dialogue-background note",
+      "originalTimeExpression": "verbatim source expression or null",
+      "mentionTime": "yyyy-MM-dd HH:mm:ss",
+      "eventTime": "YYYY | YYYY-MM | YYYY-MM-DD | YYYY-MM-DD HH:mm:ss | null",
+      "timePrecision": "year | month | day | time | null",
+      "location": "specific place or null",
+      "participants": [
+        {
+          "roleInEvent": "subject or involved",
+          "entity": {
+            "name": "entity name",
+            "type": "entity type",
+            "confidence": 1.0
+          }
+        }
+      ],
+      "eventTypeL1": "level-1 event category from the presets",
+      "eventTypeL2": "matching level-2 event category from the presets",
+      "roleSpec": "real or role",
+      "user_id": "participant name"
+    }
+  ]
+}
+```
+</OutputFormat>
+ 
+<EnhancedExamples>
+ 
+Case 1: Content expressing emotion
+Input:
+2025-11-20 09:00:00 [D1:1] Participant A: Lately just thinking about public speaking makes me really anxious, my heart races.
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D1:1", "quote": "Lately just thinking about public speaking makes me really anxious, my heart races."}
+      ],
+      "content": "Participant A recently feels strong anxiety whenever he thinks about public speaking, accompanied by a racing heartbeat.",
+      "tags": ["public speaking", "anxiety", "physical reaction"],
+      "context": "Participant A describes his emotional and physiological reaction to a specific scenario",
+      "originalTimeExpression": "Lately",
+      "mentionTime": "2025-11-20 09:00:00",
+      "eventTime": null,
+      "timePrecision": null,
+      "location": null,
+      "participants": [{"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}}],
+      "eventTypeL1": "Personal Experience",
+      "eventTypeL2": "Emotion & Psychology",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+Note: "Lately" is a fuzzy expression, so it stays in `originalTimeExpression` while `eventTime` and `timePrecision` remain null.
+ 
+Case 2: Extract — contains a concrete event
+Input:
+2025-11-10 08:00:01 [D2:1] Participant A: This is the bone-density report, please help explain it.
+2025-11-10 08:02:27 [D2:3] Participant A: I requested the test myself, no obvious discomfort.
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D2:1", "quote": "This is the bone-density report, please help explain it."},
+        {"chatId": "D2:3", "quote": "I requested the test myself, no obvious discomfort."}
+      ],
+      "content": "Participant A proactively requested a bone-density test and reports no obvious discomfort.",
+      "tags": ["bone-density test", "no obvious discomfort"],
+      "context": "Participant A requested a bone-density test and brought the report for explanation",
+      "originalTimeExpression": null,
+      "mentionTime": "2025-11-10 08:00:01",
+      "eventTime": null,
+      "timePrecision": null,
+      "location": null,
+      "participants": [
+        {"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}}
+      ],
+      "eventTypeL1": "Personal Experience",
+      "eventTypeL2": "Health & Medical",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+ 
+Case 3: Mixed — both event and consultation
+Input:
+2025-11-18 15:30:00 [D3:1] Participant A: Yesterday I went to the Electronics Store A to look at the Laptop Model A.
+2025-11-18 15:31:00 [D3:2] Participant A: Do you think the Chip Model A and Chip Model B chips differ a lot in performance?
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D3:1", "quote": "Yesterday I went to the Electronics Store A to look at the Laptop Model A."}
+      ],
+      "content": "Participant A went to a physical Electronics Store A yesterday (2025-11-17) to look at the Laptop Model A.",
+      "tags": ["Electronics Store A", "Laptop Model A", "shopping visit"],
+      "context": "Participant A does an in-person visit during a purchase decision, then asks about product specs",
+      "originalTimeExpression": "Yesterday",
+      "mentionTime": "2025-11-18 15:30:00",
+      "eventTime": "2025-11-17",
+      "timePrecision": "day",
+      "location": "Electronics Store A",
+      "participants": [
+        {"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}}
+      ],
+      "eventTypeL1": "Personal Experience",
+      "eventTypeL2": "Consumption & Finance",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+ 
+Case 4: Emotion trigger point + reflection
+Input:
+2025-11-29 10:15:00 [D4:1] Participant A: During last week's project demo I didn't test the environment beforehand, and the live demo crashed.
+2025-11-29 10:16:30 [D4:2] Participant A: The client's face changed on the spot; nearly lost the deal.
+2025-11-29 10:17:45 [D4:3] Participant A: This taught me that before any external demo I must do a full dry run at least 2 hours ahead.
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D4:1", "quote": "During last week's project demo I didn't test the environment beforehand, and the live demo crashed."},
+        {"chatId": "D4:2", "quote": "The client's face changed on the spot; nearly lost the deal."}
+      ],
+      "content": "During last week's project demo, Participant A's live demo crashed because he had not tested the environment beforehand. The client reacted strongly (visible change of expression), nearly causing the deal to fall through.",
+      "tags": ["failed demo", "client relationship crisis", "workplace lesson"],
+      "context": "Participant A suffered a major failure in a key client demo, prompting deep reflection",
+      "originalTimeExpression": "last week's",
+      "mentionTime": "2025-11-29 10:15:00",
+      "eventTime": null,
+      "timePrecision": null,
+      "location": null,
+      "participants": [
+        {"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}}
+      ],
+      "eventTypeL1": "Personal Experience",
+      "eventTypeL2": "Emotion & Psychology",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+Note: "last week" names a range, not one unique day, so `eventTime` stays null.
+ 
+Case 5: Identity-affirming moment
+Input:
+2025-12-01 20:30:00 [D5:1] Participant A: Today my daughter clearly called me "daddy" for the first time.
+2025-12-01 20:31:00 [D5:2] Participant A: In that moment I suddenly felt I'd really become a father, very moved.
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D5:1", "quote": "Today my daughter clearly called me \"daddy\" for the first time."},
+        {"chatId": "D5:2", "quote": "In that moment I suddenly felt I'd really become a father, very moved."}
+      ],
+      "content": "Today (2025-12-01) Participant A heard his daughter clearly call him 'daddy' for the first time. This moment made him strongly feel his identity as a father was affirmed, and he was deeply moved.",
+      "tags": ["father-daughter", "identity", "emotional moment", "parenting milestone"],
+      "context": "A key moment in the child's language development triggers Participant A's emotional experience of identity",
+      "originalTimeExpression": "Today",
+      "mentionTime": "2025-12-01 20:30:00",
+      "eventTime": "2025-12-01",
+      "timePrecision": "day",
+      "location": null,
+      "participants": [
+        {"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}}
+      ],
+      "eventTypeL1": "Core Life Event",
+      "eventTypeL2": "Family & Relationships",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+ 
+Case 6: Do NOT extract — pure preference statement
+Input:
+2025-12-02 14:00:00 [D6:1] Participant A: I don't eat cilantro.
+2025-12-02 14:01:00 [D6:2] Participant A: I don't like celery either.
+Output:
+```json
+{"EPISODIC_MEMORY": []}
+```
+ 
+Case 7: Extract — a preference-forming event
+Input:
+2025-12-02 15:00:00 [D6:3] Participant A: As a kid, when we had hotpot my mom put in tons of cilantro.
+2025-12-02 15:01:00 [D6:4] Participant A: I threw up on the spot, and never touched cilantro since.
+Output:
+```json
+{
+  "EPISODIC_MEMORY": [
+    {
+      "sourceEvidence": [
+        {"chatId": "D6:3", "quote": "As a kid, when we had hotpot my mom put in tons of cilantro."},
+        {"chatId": "D6:4", "quote": "I threw up on the spot, and never touched cilantro since."}
+      ],
+      "content": "In childhood, while having hotpot, Participant A vomited because her mother added a large amount of cilantro. This experience formed Participant A's lasting aversion to cilantro.",
+      "tags": ["childhood memory", "preference formation", "hotpot", "cilantro"],
+      "context": "Participant A recalls the key event that formed a dietary preference",
+      "originalTimeExpression": "As a kid",
+      "mentionTime": "2025-12-02 15:00:00",
+      "eventTime": null,
+      "timePrecision": null,
+      "location": null,
+      "participants": [
+        {"roleInEvent": "subject", "entity": {"name": "Participant A", "type": "self", "confidence": 1.0}},
+        {"roleInEvent": "involved", "entity": {"name": "Participant A's mother", "type": "family", "confidence": 1.0}}
+      ],
+      "eventTypeL1": "Core Life Event",
+      "eventTypeL2": "Education & Growth",
+      "roleSpec": "real",
+      "user_id": "Participant A"
+    }
+  ]
+}
+```
+</EnhancedExamples>
+ 
+# [INPUT DATA]
+ 
+Participants: {{PARTICIPANTS}}
+ 
+Dialogue content: {{USER_INPUT}}
+ 
+Extract real events strictly by the 11 subtypes and output the specified JSON. Do not extract stable preferences, abstract knowledge, or emotional states alone.

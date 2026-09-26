@@ -1,0 +1,21 @@
+include RELEASE_MANIFEST.json
+include requirements.txt
+include .env.example
+include README.md LICENSE NOTICE pyproject.toml MANIFEST.in
+recursive-include src *.py
+recursive-include src/llm/prompts *.txt
+recursive-include src/benchmarks/configs *.json
+recursive-include src/benchmarks/prompts *.txt *.json *.md
+recursive-include src/benchmarks/prompts/third_party *
+recursive-include src/benchmarks/fixtures *.json *.jsonl *.csv *.md
+recursive-include examples *.json *.md *.py
+prune .git
+prune .idea
+prune .venv
+prune data
+prune datasets
+prune runs
+prune outputs
+prune dist
+prune build
+global-exclude *.py[cod] .DS_Store ._* *.pem *.key .env

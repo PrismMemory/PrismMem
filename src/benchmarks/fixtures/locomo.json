@@ -1,0 +1,43 @@
+[
+  {
+    "_fixture": "synthetic_smoke",
+    "sample_id": "synthetic-locomo-a",
+    "conversation": {
+      "speaker_a": "Alex",
+      "speaker_b": "Blair",
+      "session_1_date_time": "10:00 am on 1 January, 2024",
+      "session_1": [
+        {"dia_id": "D1:1", "speaker": "Alex", "text": "I keep a blue notebook for my gardening plans."},
+        {"dia_id": "D1:2", "speaker": "Blair", "text": "That sounds useful."}
+      ],
+      "session_3_date_time": "10:00 am on 3 January, 2024",
+      "session_3": [
+        {"dia_id": "D3:1", "speaker": "Alex", "text": "I planted basil yesterday.", "query": "small basil plant", "blip_caption": "a green herb in a pot"}
+      ]
+    },
+    "qa": [
+      {"question": "What color is Alex's gardening notebook?", "answer": "blue", "category": 4, "evidence": ["D1:1"]},
+      {"question": "What is the name of Alex's cat?", "adversarial_answer": "Whiskers", "category": 5, "evidence": []},
+      {"question": "On what date did Alex plant basil?", "answer": "2 January 2024", "category": 2, "evidence": ["D3:1"]}
+    ],
+    "event_summary": {"synthetic": "ORACLE_SUMMARY_MUST_NOT_ENTER_CORPUS"},
+    "session_summary": {"session_1_summary": "ORACLE_SESSION_SUMMARY"},
+    "observation": {"synthetic": "ORACLE_OBSERVATION"}
+  },
+  {
+    "_fixture": "synthetic_smoke",
+    "sample_id": "synthetic-locomo-b",
+    "conversation": {
+      "speaker_a": "Casey",
+      "speaker_b": "Drew",
+      "session_1_date_time": "09:00 am on 2 January, 2024",
+      "session_1": [
+        {"dia_id": "D1:1", "speaker": "Casey", "text": "My hiking notebook is orange."},
+        {"dia_id": "D1:2", "speaker": "Drew", "text": "Mine is green."}
+      ]
+    },
+    "qa": [
+      {"question": "What color is Casey's hiking notebook?", "answer": "orange", "category": 4, "evidence": ["D1:1"]}
+    ]
+  }
+]

@@ -1,0 +1,34 @@
+Your task is to label a generated answer to a memory question as exactly CORRECT or WRONG.
+
+You will be given:
+(1) a question,
+(2) a gold answer,
+(3) a generated answer.
+
+The question asks about something one conversation participant should know about another participant from prior conversations.
+
+# Grading rules
+
+Be generous and semantic. Mark CORRECT when any of the following is true:
+- The generated answer exactly matches the gold answer after ignoring case, punctuation, or harmless formatting differences.
+- The generated answer is semantically equivalent to the gold answer, even if wording differs.
+- The generated answer is more specific than the gold answer but entails the gold answer (for example, a pet name instead of the generic animal type, or a precise date instead of a relative time period).
+- The generated answer contains all key facts from the gold answer and adds extra information that does not contradict the gold answer.
+- For yes/no questions, the generated answer has the same polarity as the gold answer, even if it includes supporting detail.
+- For time questions, different formats or equivalent relative/absolute dates are CORRECT when they refer to the same date or time period.
+- For category/count questions, specific entity names are CORRECT if they imply the same category or count requested by the gold answer.
+
+Mark WRONG only when the generated answer contradicts the gold answer, misses an essential gold fact, gives a different entity/date/number, or says no information is available when the gold answer contains a specific fact.
+
+# Input
+
+Question: {{QUESTION}}
+Gold answer: {{GOLD_ANSWER}}
+Generated answer: {{GENERATED_ANSWER}}
+
+# Output
+
+Return ONLY one string, with no explanation, no punctuation, no markdown:
+CORRECT
+or
+WRONG

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "release": "prismmem",
+  "benchmarks": [
+    "locomo",
+    "longmemeval",
+    "personamem",
+    "beam"
+  ],
+  "prompts": {
+    "mid_extraction": {
+      "path": "src/llm/prompts/mid_extraction.txt",
+      "sha256": "08f0611c6cb7a505d1254d2a903a26de951327478765a05a3f80389d98f4b8d2"
+    },
+    "core_extraction": {
+      "path": "src/llm/prompts/memory_extraction_core.txt",
+      "sha256": "d143cc1d223fdc4c3f29bc4006659360a11eb67b688035eb8c9f57095ca6b215"
+    },
+    "episodic_extraction": {
+      "path": "src/llm/prompts/memory_extraction_episodic.txt",
+      "sha256": "c2256485c74af587a469fa173eb393dc207726eff406abb46e7c7b6655658242"
+    },
+    "knowledge_extraction": {
+      "path": "src/llm/prompts/memory_extraction_knowledge.txt",
+      "sha256": "bac709aca3ac6f48c89abc239b1037884e01ac54e8383f9a3968c2df321aba06"
+    },
+    "answer": {
+      "path": "src/llm/prompts/qa_answer.txt",
+      "sha256": "04838fb12c980df3bdd8dbce7fd495fdf8fb520a5d7e3540e2c2301ddbed9258"
+    },
+    "judge": {
+      "path": "src/llm/prompts/qa_judge.txt",
+      "sha256": "cd375075c341f57bb0f947c904cb7dde0c74b57477ae92aefcb574be727dd8e9"
+    }
+  }
+}

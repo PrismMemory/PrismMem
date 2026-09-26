@@ -1,0 +1,45 @@
+[
+  {
+    "sample_id": "synthetic-demonstration-alice-bob",
+    "_fixture": "synthetic_smoke",
+    "_fixture_description": "Synthetic demonstration with invented dialogue and a question; not benchmark data or experimental results.",
+    "conversation": {
+      "speaker_a": "Participant A",
+      "speaker_b": "Participant B",
+      "session_1_date_time": "10:00 AM on 1 January, 2024",
+      "session_1": [
+        {
+          "dia_id": "D1:1",
+          "speaker": "Participant A",
+          "text": "I am making a paper kite. I plan to paint it blue."
+        },
+        {
+          "dia_id": "D1:2",
+          "speaker": "Participant B",
+          "text": "I can help you cut the paper for your kite."
+        }
+      ],
+      "session_2_date_time": "10:00 AM on 3 January, 2024",
+      "session_2": [
+        {
+          "dia_id": "D2:1",
+          "speaker": "Participant A",
+          "text": "I finished the kite yesterday. I changed my mind and painted it green."
+        },
+        {
+          "dia_id": "D2:2",
+          "speaker": "Participant B",
+          "text": "Your green kite is ready. Let's fly it together."
+        }
+      ]
+    },
+    "qa": [
+      {
+        "question": "What color did Participant A paint her finished kite?",
+        "answer": "Green.",
+        "category": 1,
+        "evidence": ["D2:1"]
+      }
+    ]
+  }
+]

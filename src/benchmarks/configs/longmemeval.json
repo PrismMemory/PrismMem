@@ -1,0 +1,45 @@
+{
+  "benchmark": "longmemeval",
+  "configuration_kind": "prism_benchmark_port",
+  "models": {
+    "extraction": "glm-5.2",
+    "embedding": "text-embedding-v4",
+    "rerank": "qwen3-rerank",
+    "answer": "gpt-4o-mini",
+    "judge": "gpt-4.1-mini"
+  },
+  "build": {
+    "memory_types": [
+      "core",
+      "episodic",
+      "knowledge"
+    ],
+    "mid_prompt": "mid_extraction",
+    "participant_mode": "explicit"
+  },
+  "environment": {
+    "PRISM_BM25_K1": "1.5",
+    "PRISM_BM25_B": "0.75",
+    "PRISM_BM25_LEMMATIZATION": "1",
+    "PRISM_BM25_AUTO_DOWNLOAD": "0",
+    "PRISM_RRF_K": "60",
+    "PRISM_RRF_CANDIDATE_TOP_N": "70",
+    "PRISM_MID_RERANK_TOP_N": "10",
+    "PRISM_CORE_RERANK_TOP_N": "60",
+    "PRISM_OTHER_RERANK_TOP_N": "50",
+    "PRISM_LONG_RERANK_MIN_SCORE": "0.5",
+    "PRISM_RERANK_BATCH_SIZE": "100",
+    "PRISM_EXTRACTION_ENABLE_THINKING": "0",
+    "PRISM_QA_ENABLE_THINKING": "0"
+  },
+  "prepare_options": {},
+  "answer": {
+    "max_tokens": 4000,
+    "temperature": 0
+  },
+  "description": "Semantic-scope induction, source-grounded facet construction and representation-isolated retrieval, with benchmark-specific extraction, answer and evaluation settings.",
+  "judge": {
+    "temperature": 0,
+    "max_tokens": 2048
+  }
+}

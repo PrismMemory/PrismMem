@@ -1,0 +1,32 @@
+[
+  {
+    "_fixture": "synthetic_smoke",
+    "question_id": "synthetic-lme-1",
+    "question_type": "single-session-assistant",
+    "question": "What herb did you suggest for my balcony?",
+    "question_date": "2024/01/04 (Thu) 12:00",
+    "answer": "basil",
+    "answer_session_ids": ["answer_synthetic_balcony"],
+    "haystack_session_ids": ["synthetic_filler", "answer_synthetic_balcony", "synthetic_filler"],
+    "haystack_dates": ["2024/01/01 (Mon) 09:00", "2024/01/02 (Tue) 10:00", "2024/01/03 (Wed) 11:00"],
+    "haystack_sessions": [
+      [{"role": "user", "content": "I bought a blue watering can."}, {"role": "assistant", "content": "Enjoy your gardening."}],
+      [{"role": "user", "content": "What herb could I grow on the balcony?", "has_answer": false}, {"role": "assistant", "content": "I suggest basil for the sunny spot.", "has_answer": true}],
+      [{"role": "user", "content": "I watered the pots today."}, {"role": "assistant", "content": "A regular routine can help."}]
+    ]
+  },
+  {
+    "_fixture": "synthetic_smoke",
+    "question_id": "synthetic-lme-2_abs",
+    "question_type": "single-session-user",
+    "question": "What is my dog's name?",
+    "question_date": "2024/01/04 (Thu) 12:00",
+    "answer": "The dog's name was not provided in the history.",
+    "answer_session_ids": [],
+    "haystack_session_ids": ["synthetic_unknown_name"],
+    "haystack_dates": ["2024/01/03 (Wed) 09:00"],
+    "haystack_sessions": [
+      [{"role": "user", "content": "I took my dog to the park."}, {"role": "assistant", "content": "That sounds like a pleasant walk."}]
+    ]
+  }
+]

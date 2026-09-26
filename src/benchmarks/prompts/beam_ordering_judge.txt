@@ -1,0 +1,16 @@
+You are an expert evaluator. The question asked the user to list events in chronological order. The reference ordering of events is given below as a numbered list. Your task is to determine the order in which these same events appear in the response.
+
+## QUESTION:
+{question}
+
+## REFERENCE ORDERING (correct chronological order):
+{reference_ordering}
+
+## RESPONSE TO EVALUATE:
+{response}
+
+## INSTRUCTIONS:
+For each event in the reference list, determine its position (1-based) in the response. If an event is NOT mentioned in the response at all, assign position -1.
+
+Return a JSON object mapping each event label to its detected position:
+{{"positions": [{{"event": "<event label>", "position": <int or -1>}}, ...]}}

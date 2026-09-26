@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prismmem"
+version = "1.1.0"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Text Processing :: Indexing",
+]
+dependencies = [
+  "openai==2.48.0",
+  "python-dotenv==1.2.2",
+  "dashscope==1.26.4",
+  "spacy==3.8.14",
+  "click>=8.1,<9",
+]
+
+[project.scripts]
+prismmem-extract = "eval.extract_locomo:main"
+prismmem-backfill = "eval.backfill_embeddings:main"
+prismmem-evaluate = "eval.evaluate:main"
+prismmem-score = "eval.score:main"
+prismmem-benchmark = "benchmarks.run:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["config", "jsonio"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+llm = ["prompts/*.txt"]
+benchmarks = [
+  "configs/*.json",
+  "prompts/*.txt",
+  "prompts/*.json",
+  "prompts/*.md",
+  "prompts/third_party/*",
+  "prompts/third_party/**/*",
+  "fixtures/*.json",
+  "fixtures/*.jsonl",
+  "fixtures/*.csv",
+  "fixtures/*.md",
+  "fixtures/**/*.json",
+  "fixtures/**/*.jsonl",
+  "fixtures/**/*.csv",
+  "fixtures/**/*.md",
+]

@@ -1,0 +1,82 @@
+{
+  "dataset_kind": "synthetic_smoke",
+  "conversations": [
+    {
+      "conversation_id": "beam-smoke-a",
+      "chat": [
+        {
+          "batch_number": 1,
+          "time_anchor": null,
+          "turns": [
+            [
+              {
+                "id": 0,
+                "role": "user",
+                "content": "I bought a blue bicycle.",
+                "time_anchor": "January-01-2024"
+              },
+              {
+                "id": 1,
+                "role": "assistant",
+                "content": "Enjoy your new bicycle."
+              }
+            ]
+          ]
+        },
+        {
+          "batch_number": 2,
+          "time_anchor": null,
+          "turns": [
+            [
+              {
+                "id": 2,
+                "role": "user",
+                "content": "Today I repaired the bicycle tire.",
+                "time_anchor": "January-02-2024"
+              },
+              {
+                "id": 3,
+                "role": "assistant",
+                "content": "The tire is ready for your next ride."
+              }
+            ]
+          ]
+        }
+      ],
+      "probing_questions": {
+        "information_extraction": [
+          {
+            "question": "What color bicycle did I buy?",
+            "answer": "Blue.",
+            "difficulty": "easy",
+            "source_chat_ids": [
+              0
+            ],
+            "rubric": [
+              "LLM response should state: blue"
+            ]
+          }
+        ],
+        "event_ordering": [
+          {
+            "question": "In what order did the bicycle events occur?",
+            "answer": "Bought a blue bicycle.\nRepaired the tire.",
+            "difficulty": "easy",
+            "source_chat_ids": [
+              0,
+              2
+            ],
+            "ordering_tested": [
+              "Purchase",
+              "Repair"
+            ],
+            "rubric": [
+              "Bought a blue bicycle",
+              "Repaired the bicycle tire"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
